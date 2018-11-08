@@ -22,7 +22,7 @@ def check_comments(browser, db_conn, hash)
       if comm_check.count > 0
         prev_comm_id = comm_check.get(:commId)
 
-      elsif comm_check.count.zero? && last_comm_id > 0
+      elsif comm_check.count.zero? && prev_comm_id > 0
         # rest of comments
         db_conn[:comments].insert(
           commTopicId: 0,
@@ -33,8 +33,8 @@ def check_comments(browser, db_conn, hash)
           commContent: 'comm_content'
         )
         puts 'added recent comments'
-        # to do - \/ add actual commId \/
-        prev_comm_id = 1234567890
+        prev_comm_id = db_conn[:comments].order(Sequel.desc(:commId)).get(:commId)
+
       else
         # first comment of the topic
         db_conn[:comments].insert(
@@ -47,7 +47,7 @@ def check_comments(browser, db_conn, hash)
         )
         first_comm_id = db_conn[:comments].where(
           commTopicId: this_topic_id,
-          commPrevComm: 0
+          commPrevCommId: 0
         ).get(:commId)
 
         prev_comm_id = first_comm_id
@@ -55,6 +55,7 @@ def check_comments(browser, db_conn, hash)
         db_conn[:topics].where(topicId: this_topic_id).update(
           topicFirstComm: first_comm_id
         )
+        puts 'added first comment'
       end
     end
   else
