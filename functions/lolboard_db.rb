@@ -13,22 +13,22 @@ rescue Extenction
 end
 
 conn_sq.create_table!(:topics) do
-  primary_key :topicId, serial: true
-  String      :topicHash, null: false
-  Integer     :topicCommAmount, null: true
-  Integer     :topicFirstComm, null: true
-  String      :topicTitle, null: false
-  String      :topicAuthor, null: false
-  DateTime    :topicDate, null: true
-  String      :topicContent, null: false
+  primary_key :id, serial: true
+  String      :unique_code, null: false
+  Integer     :comm_amount, null: true
+  Integer     :first_comm, null: true
+  String      :title, null: false
+  String      :author, null: false
+  DateTime    :date, null: true
+  String      :content, null: false
 end
 
 conn_sq.create_table!(:comments) do
-  primary_key :commId, serial: true
-  Integer     :commTopicId, null: true
-  Integer     :commPrevCommId, null: true
-  String      :commInnerId, null: true
-  String      :commAuthor, null: true
-  DateTime    :commDate, null: true
-  String      :commContent, null: true
+  primary_key :id, serial: true
+  Integer     :topic_id, null: true
+  Integer     :prev_comm_id, null: true
+  String      :inner_id, null: true
+  String      :author, null: true
+  DateTime    :date, null: true
+  String      :content, null: true
 end
