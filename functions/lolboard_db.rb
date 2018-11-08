@@ -26,7 +26,7 @@ end
 conn_sq.create_table!(:comments) do
   primary_key :commId, serial: true
   Integer     :commTopicId, null: true
-  Integer     :commPrevComm, null: true
+  Integer     :commPrevCommId, null: true
   String      :commInnerId, null: true
   String      :commAuthor, null: true
   DateTime    :commDate, null: true
