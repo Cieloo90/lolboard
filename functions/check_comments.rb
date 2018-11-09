@@ -1,7 +1,7 @@
 def check_comments(browser, db_conn, hash)
   this_topic_id = db_conn[:topics].where(unique_code: hash).get(:id)
   comments_ammount = 0
-  prev_comm_id = 0
+  prev_comm_id = nil
 
   if browser.div(class: 'flat-comments').exists?
     # browser.div(class: 'pager').link().each do |pager_link|
@@ -25,40 +25,27 @@ def check_comments(browser, db_conn, hash)
       if comm_check.count > 0
         prev_comm_id = comm_check.get(:id)
 
-      elsif comm_check.count.zero? && prev_comm_id > 0
-        # rest of comments
-        db_conn[:comments].insert(
-          topic_id: 0,
-          prev_comm_id: prev_comm_id,
-          inner_id: comm_inner_id,
-          author: 'comm_author',
-          date: comm_date,
-          content: 'comm_content'
-        )
-        puts 'added recent comments'
-        prev_comm_id = db_conn[:comments].order(Sequel.desc(:id)).get(:id)
-
       else
-        # first comment of the topic
         db_conn[:comments].insert(
-          topic_id: this_topic_id,
-          prev_comm_id: 0,
+          topic_id: prev_comm_id ? 0 : this_topic_id,
+          prev_comm_id: prev_comm_id || 0,
           inner_id: comm_inner_id,
           author: 'comm_author',
           date: comm_date,
           content: 'comm_content'
         )
-        first_comm_id = db_conn[:comments].where(
-          topic_id: this_topic_id,
-          prev_comm_id: 0
-        ).get(:id)
 
-        prev_comm_id = first_comm_id
+        unless prev_comm_id
+          first_comm_id = db_conn[:comments].where(
+            topic_id: this_topic_id,
+            prev_comm_id: 0
+          ).get(:id)
 
-        db_conn[:topics].where(id: this_topic_id).update(
-          first_comm: first_comm_id
-        )
-        puts 'added first comment'
+          db_conn[:topics].where(id: this_topic_id).update(
+            first_comm: first_comm_id
+          )
+        end
+        prev_comm_id = db_conn[:comments].order(Sequel.desc(:id)).get(:id)
       end
     end
   else

@@ -8,12 +8,12 @@ def add_topic(browser, db_conn, hash)
   # topic_content = n_topic.css('#content').text
 
   db_conn[:topics].insert(
-    topicCommAmount: 0,
-    topicTitle: 'topic_title',
-    topicHash: hash,
-    topicAuthor: topic_author,
-    topicDate: topic_date,
-    topicContent: 'topic_content'
+    comm_amount: 0,
+    title: 'topic_title',
+    unique_code: hash,
+    author: topic_author,
+    date: topic_date,
+    content: 'topic_content'
   )
 
   check_comments(browser, db_conn, hash)
