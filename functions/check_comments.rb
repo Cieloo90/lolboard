@@ -24,8 +24,8 @@ def check_comments(browser, db_conn, unique)
 
       else
         new_comm = Comments.create(
-          topic_id: prev_comm_id ? 0 : this_topic_id,
-          prev_comm_id: prev_comm_id || 0,
+          topic_id: prev_comm_id ? nil : this_topic_id,
+          prev_comm_id: prev_comm_id || nil,
           inner_id: comm_inner_id,
           author: 'comm_author',
           date: comm_date,
@@ -33,11 +33,11 @@ def check_comments(browser, db_conn, unique)
         )
 
         unless prev_comm_id
-          Topics[id: this_topic_id].set(first_comm: new_comm[:id])
+          Topics[id: this_topic_id].update(first_comm: new_comm[:id])
         end
         prev_comm_id = new_comm[:id]
       end
     end
   end
-  Topics[id: this_topic_id].set(comm_amount: comments_ammount)
+  Topics[id: this_topic_id].update(comm_amount: comments_ammount)
 end
