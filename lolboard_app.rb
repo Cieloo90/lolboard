@@ -12,6 +12,20 @@ br.window.move_to(0, 0)
 link = 'https://boards.eune.leagueoflegends.com/en/'
 topics = []
 
+conn_sq = Sequel.postgres(
+  'lolboard_db_tests',
+  user: 'postgres',
+  password: 'password',
+  host: '172.17.0.2',
+  port: '5432'
+)
+
+class Comments < Sequel::Model
+end
+
+class Topics < Sequel::Model
+end
+
 br.goto(link)
 discussion_table = br.div(class: %w[discussions main]).html
 n_discussion_table = Nokogiri::HTML.parse(discussion_table)
@@ -26,24 +40,16 @@ n_discussion_table.css('.discussion-list-item').each_with_index do |row, index|
   }
 end
 
-conn_sq = Sequel.postgres(
-  'lolboard_db_tests',
-  user: 'postgres',
-  password: 'password',
-  host: '172.17.0.2',
-  port: '5432'
-)
-
 topics.each_with_index do |single_topic, index|
-  unique_code_checker = conn_sq[:topics].where(unique_code: single_topic[:unique_code])
+  unique_code_checker = Topics[unique_code: single_topic[:unique_code]]
 
-  if unique_code_checker.count.zero? && index < 10
+  if !unique_code_checker && index < 10
     br.goto("https://boards.eune.leagueoflegends.com/#{single_topic[:href]}?show=flat")
     add_topic(br, conn_sq, single_topic[:unique_code])
-    puts "record with hash - #{single_topic[:unique_code]} added to database"
+    puts "record with unique_code - #{single_topic[:unique_code]} added to database"
 
-  elsif unique_code_checker.count > 0
-    if conn_sq[:topics].where(unique_code: single_topic[:unique_code]).get(:comm_amount) != single_topic[:comms].to_i
+  elsif unique_code_checker
+    if Topics[unique_code: single_topic[:unique_code]][:comm_amount] != single_topic[:comms].to_i
       puts 'amount of comments changed, need update'
       br.goto("https://boards.eune.leagueoflegends.com/#{single_topic[:href]}?show=flat")
       check_comments(br, conn_sq, single_topic[:unique_code])
