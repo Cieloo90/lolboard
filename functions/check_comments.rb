@@ -33,8 +33,7 @@ def check_comments(browser, db_conn, unique)
         )
 
         unless prev_comm_id
-          first_comm_id = Comments[topic_id: this_topic_id, prev_comm_id: 0][:id]
-          Topics[id: this_topic_id].set(first_comm: first_comm_id)
+          Topics[id: this_topic_id].set(first_comm: new_comm[:id])
         end
         prev_comm_id = new_comm[:id]
       end
