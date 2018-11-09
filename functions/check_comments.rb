@@ -15,7 +15,7 @@ def check_comments(browser, db_conn, unique)
     n_comments.css('.nested-comment').each do |comm|
       comments_ammount += 1
       comm_inner_id = comm['id']
-      comm_date = comm.css('.timeago > span')[0]['title'][0..18].tr('T', ' ')
+      comm_date = Time.parse(comm.css('.timeago > span')[0]['title'])
 
       comm_exist = Comments[inner_id: comm_inner_id, date: comm_date]
 
