@@ -1,16 +1,17 @@
-def check_comments(browser, db_conn, unique)
+def check_comments(browser, unique)
   this_topic_id = Topics[unique_code: unique][:id]
+  w_comments = ''
   comments_ammount = 0
   prev_comm_id = nil
 
   if browser.div(class: 'flat-comments').exists?
-    # browser.div(class: 'pager').link().each do |pager_link|
-    #   pager_link.click
-    w_comments = browser.div(class: 'flat-comments').html
-    # end
+    browser.div(class: 'pager').links.each do |pager_link|
+      if pager_link.text
+        pager_link.click
+        w_comments += browser.div(class: 'flat-comments').html
+      end
+    end
     n_comments = Nokogiri::HTML.parse(w_comments)
-
-    ### \/ to do - pagination on comments site \/ ###
 
     n_comments.css('.nested-comment').each do |comm|
       comments_ammount += 1

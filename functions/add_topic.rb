@@ -1,4 +1,4 @@
-def add_topic(browser, db_conn, unique)
+def add_topic(browser, unique)
   w_topic = browser.div(class: 'op-container').html
   n_topic = Nokogiri::HTML.parse(w_topic)
 
@@ -16,5 +16,5 @@ def add_topic(browser, db_conn, unique)
     content: 'topic_content'
   )
 
-  check_comments(browser, db_conn, unique)
+  check_comments(browser, unique)
 end
