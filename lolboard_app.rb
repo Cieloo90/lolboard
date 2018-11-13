@@ -12,7 +12,7 @@ br.window.move_to(0, 0)
 link = 'https://boards.eune.leagueoflegends.com/en/'
 topics = []
 
-Sequel.postgres(
+conn_sq = Sequel.postgres(
   'lolboard_db_tests',
   user: 'postgres',
   password: 'password',
@@ -31,12 +31,12 @@ n_discussion_table = Nokogiri::HTML.parse(br.div(class: %w[discussions main]).ht
 
 ### to do \/ pagination on discussion table site \/ ###
 
-n_discussion_table.css('.discussion-list-item').each do |row|
-  topics.push(
+topics = n_discussion_table.css('.discussion-list-item').map do |row|
+  {
     href: row['data-href'],
     unique_code: row['data-discussion-id'],
     comms: row['data-comments']
-  )
+  }
 end
 
 topics.each_with_index do |topic, index|
