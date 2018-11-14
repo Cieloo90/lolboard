@@ -1,7 +1,6 @@
 def check_comments(browser, unique)
-  this_topic_id = Topics[unique_code: unique][:id]
+  this_topic = Topics[unique_code: unique]
   w_comments = ''
-  comments_ammount = 0
   prev_comm_id = nil
 
   if browser.div(class: 'flat-comments').exists?
@@ -11,10 +10,9 @@ def check_comments(browser, unique)
         w_comments += browser.div(class: 'flat-comments').html
       end
     end
-    n_comments = Nokogiri::HTML.parse(w_comments)
+    n_comments = Nokogiri::HTML.parse(w_comments).css('.nested-comment')
 
-    n_comments.css('.nested-comment').each do |comm|
-      comments_ammount += 1
+    n_comments.each do |comm|
       comm_inner_id = comm['id']
       comm_date = Time.parse(comm.css('.timeago > span')[0]['title'])
 
@@ -25,7 +23,7 @@ def check_comments(browser, unique)
 
       else
         new_comm = Comments.create(
-          topic_id: prev_comm_id ? nil : this_topic_id,
+          topic_id: prev_comm_id ? nil : this_topic[:id],
           prev_comm_id: prev_comm_id || nil,
           inner_id: comm_inner_id,
           author: 'comm_author',
@@ -34,11 +32,11 @@ def check_comments(browser, unique)
         )
 
         unless prev_comm_id
-          Topics[id: this_topic_id].update(first_comm: new_comm[:id])
+          Topics[id: this_topic[:id]].update(first_comm: new_comm[:id])
         end
         prev_comm_id = new_comm[:id]
       end
     end
   end
-  Topics[id: this_topic_id].update(comm_amount: comments_ammount)
+  Topics[id: this_topic[:id]].update(comm_amount: n_comments.count)
 end
