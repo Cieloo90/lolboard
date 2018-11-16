@@ -3,17 +3,71 @@ require 'nokogiri'
 require 'sequel'
 require 'pry'
 
-def check_comments(browser, unique)
-  this_topic = Topics[unique_code: unique]
+br = Watir::Browser.new :chrome, headless: true
+# br.window.resize_to(1920, 1080)
+# br.window.move_to(0, 0)
+
+Sequel.postgres(
+  'lolboard_db_tests',
+  user: 'postgres',
+  password: 'password',
+  host: '172.17.0.2',
+  port: '5432'
+)
+
+class Comments < Sequel::Model
+  def next_comm
+    Comments[prev_comm_id: self[:id]]
+  end
+end
+
+class Topics < Sequel::Model
+end
+
+def parse_discussion_table(browser)
+  n_discussion_table = Nokogiri::HTML.parse(browser.div(class: %w[discussions main]).html)
+  topics = n_discussion_table.css('.discussion-list-item').map do |row|
+    {
+      href: row['data-href'],
+      unique_code: row['data-discussion-id'],
+      comms: row['data-comments']
+    }
+  end
+  topics
+end
+
+def is_topic_in_db(tpc, db_tpcs)
+  if db_tpcs.include?(tpc[:unique_code])
+    true
+  else
+    false
+  end
+end
+
+def is_next_page(browser)
+  if browser.link(class: 'show-more').present?
+    true
+  else
+    false
+  end
+end
+
+def go_next_page(browser)
+  browser.link(class: 'show-more').click
+  sleep(0.7)
+end
+
+def check_comments(browser, unique_code)
+  this_topic = Topics[unique_code: unique_code]
   w_comments = ''
   prev_comm_id = nil
 
   if browser.div(class: 'flat-comments').exists?
     browser.div(class: 'pager').links.each do |pager_link|
-      if pager_link.text
-        pager_link.click
-        w_comments += browser.div(class: 'flat-comments').html
-      end
+      next unless pager_link.text
+
+      pager_link.click
+      w_comments += browser.div(class: 'flat-comments').html
     end
     n_comments = Nokogiri::HTML.parse(w_comments).css('.nested-comment')
 
@@ -46,119 +100,73 @@ def check_comments(browser, unique)
   Topics[id: this_topic[:id]].update(comm_amount: n_comments.count)
 end
 
-def add_topic(browser, unique)
+def add_topic(browser, unique_code)
   w_topic = browser.div(class: 'op-container').html
   n_topic = Nokogiri::HTML.parse(w_topic)
 
   # title = n_topic.css('.discussion-title > h1 > span')[1].text
   author = n_topic.css('.username').text
-  date = if browser.div(class: 'author-info').span(class: 'tags').exists?
-           Time.parse(n_topic.css('.author-info > span')[1]['title'])
-         else
-           Time.parse(n_topic.css('.author-info > span')[0]['title'])
-         end
+  date = Time.parse(n_topic.css('.author-info > span')[0]['title'])
   # content = n_topic.css('#content').text
 
   Topics.create(
     comm_amount: 0,
     title: 'title',
-    unique_code: unique,
+    unique_code: unique_code,
     author: author,
     date: date,
     content: 'content'
   )
 
-  check_comments(browser, unique)
+  check_comments(browser, unique_code)
 end
 
-def parse_discussion_table(browser)
-  n_discussion_table = Nokogiri::HTML.parse(browser.div(class: %w[discussions main]).html)
+loop do
+  br.goto('https://boards.eune.leagueoflegends.com/en/')
+  page = 0
+  db_topics_uniq_codes = Topics.where(present: true).all.map(&:unique_code)
+  topics_to_add = []
+  topics_to_update = []
 
-  topics = n_discussion_table.css('.discussion-list-item').map do |row|
-    {
-      href: row['data-href'],
-      unique_code: row['data-discussion-id'],
-      comms: row['data-comments']
-    }
+  until db_topics_uniq_codes.empty?
+    site_topics = parse_discussion_table(br)
+    site_topics.each_with_index do |topic, index|
+      if index > page * 50
+        if is_topic_in_db(topic, db_topics_uniq_codes)
+          topics_to_update.push(topic)
+          db_topics_uniq_codes.delete(topic[:unique_code])
+        elsif page.zero? && index < 10
+          topics_to_add.push(topic)
+        end
+      end
+    end
+    page += 1
+    break unless is_next_page(br)
+
+    go_next_page(br)
   end
-  topics
-end
 
-require './functions/check_for_topics.rb'
-
-def remain_db_topics(site_tpcs)
-  db_tpcs = []
-  Topics.each do |tpc|
-    db_tpcs.push(tpc) if tpc[:present] == true
+  db_topics_uniq_codes.each do |db_tpc_unique_code|
+    Topics[unique_code: db_tpc_unique_code].update(present: false)
   end
-  site_tpcs.each do |site_tpc|
-    if db_tpcs.include?(Topics[unique_code: site_tpc[:unique_code]])
-      db_tpcs.delete(Topics[unique_code: site_tpc[:unique_code]])
+
+  topics_to_add.each do |tpc|
+    br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
+    add_topic(br, tpc[:unique_code])
+  end
+
+  topics_to_update.each do |tpc|
+    if Topics[unique_code: tpc[:unique_code]][:comm_amount] < tpc[:comms].to_i
+      br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
+      check_comments(br, tpc[:unique_code])
     end
   end
-  db_tpcs
-end
 
-def next_topic_page(browser)
-  if browser.link(class: 'show-more').present?
-    browser.link(class: 'show-more').click
-    sleep(0.5)
-    true
-  else
-    false
+  i = 0
+  while i < 5
+    print '.'
+    sleep 2
+    i += 1
   end
+  print "\n"
 end
-
-br = Watir::Browser.new :chrome
-br.window.resize_to(1920, 1080)
-br.window.move_to(0, 0)
-
-Sequel.postgres(
-  'lolboard_db_tests',
-  user: 'postgres',
-  password: 'password',
-  host: '172.17.0.2',
-  port: '5432'
-)
-
-class Comments < Sequel::Model
-  def next_comm
-    Comments[prev_comm_id: self[:id]]
-  end
-end
-
-class Topics < Sequel::Model
-end
-
-### INFINITE LOOP ###
-
-br.goto('https://boards.eune.leagueoflegends.com/en/')
-
-site_topics = parse_discussion_table(br)
-
-while remain_db_topics(site_topics).count > 0 && next_topic_page(br)
-  next_topic_page(br)
-  site_topics = parse_discussion_table(br)
-end
-
-remain_db_topics(site_topics).each do |r_tpc|
-  puts "topic #{r_tpc[:unique_code]} not found"
-  Topics[unique_code: r_tpc[:unique_code]].update(present: false)
-end
-
-site_topics.each_with_index do |topic, index|
-  topic_in_db = Topics[unique_code: topic[:unique_code]]
-
-  if !topic_in_db && index < 10
-    br.goto("https://boards.eune.leagueoflegends.com/#{topic[:href]}?show=flat")
-    add_topic(br, topic[:unique_code])
-  elsif topic_in_db
-    if topic_in_db[:comm_amount] != topic[:comms].to_i
-      br.goto("https://boards.eune.leagueoflegends.com/#{topic[:href]}?show=flat")
-      check_comments(br, topic[:unique_code])
-    else
-      puts "topic #{index} up to date"
-    end
-  end
-end
-### INFINITE LOOP END ###

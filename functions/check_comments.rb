@@ -13,22 +13,22 @@ def check_comments(browser, unique)
     n_comments = Nokogiri::HTML.parse(w_comments).css('.nested-comment')
 
     n_comments.each do |comm|
-      comm_inner_id = comm['id']
-      comm_date = Time.parse(comm.css('.timeago > span')[0]['title'])
+      inner_id = comm['id']
+      date = Time.parse(comm.css('.timeago > span')[0]['title'])
 
-      comm_exist = Comments[inner_id: comm_inner_id, date: comm_date]
+      last_comm = Comments[inner_id: inner_id, date: date]
 
-      if comm_exist
-        prev_comm_id = comm_exist[:id]
+      if last_comm
+        prev_comm_id = last_comm[:id]
 
       else
         new_comm = Comments.create(
           topic_id: prev_comm_id ? nil : this_topic[:id],
           prev_comm_id: prev_comm_id || nil,
-          inner_id: comm_inner_id,
-          author: 'comm_author',
-          date: comm_date,
-          content: 'comm_content'
+          inner_id: inner_id,
+          author: 'author',
+          date: date,
+          content: 'content'
         )
 
         unless prev_comm_id
