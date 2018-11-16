@@ -22,6 +22,17 @@ class Comments < Sequel::Model
 end
 
 class Topics < Sequel::Model
+  def comments
+    comm_arr = []
+    actual_comm = Comments[topic_id: self[:id]]
+    if actual_comm
+      while next_comm = Comments[prev_comm_id: actual_comm[:id]]
+        comm_arr.push(actual_comm)
+        actual_comm = next_comm
+      end
+    end
+    comm_arr
+  end
 end
 
 def parse_discussion_table(browser, page)
