@@ -18,22 +18,22 @@ def check_comments(browser, unique)
     n_comments = Nokogiri::HTML.parse(w_comments).css('.nested-comment')
 
     n_comments.each do |comm|
-      comm_inner_id = comm['id']
-      comm_date = Time.parse(comm.css('.timeago > span')[0]['title'])
+      inner_id = comm['id']
+      date = Time.parse(comm.css('.timeago > span')[0]['title'])
 
-      comm_exist = Comments[inner_id: comm_inner_id, date: comm_date]
+      last_comm = Comments[inner_id: inner_id, date: date]
 
-      if comm_exist
-        prev_comm_id = comm_exist[:id]
+      if last_comm
+        prev_comm_id = last_comm[:id]
 
       else
         new_comm = Comments.create(
           topic_id: prev_comm_id ? nil : this_topic[:id],
           prev_comm_id: prev_comm_id || nil,
-          inner_id: comm_inner_id,
-          author: 'comm_author',
-          date: comm_date,
-          content: 'comm_content'
+          inner_id: inner_id,
+          author: 'author',
+          date: date,
+          content: 'content'
         )
 
         unless prev_comm_id
@@ -50,18 +50,22 @@ def add_topic(browser, unique)
   w_topic = browser.div(class: 'op-container').html
   n_topic = Nokogiri::HTML.parse(w_topic)
 
-  # topic_title = n_topic.css('.discussion-title > h1 > span')[1].text
-  topic_author = n_topic.css('.username').text
-  topic_date = Time.parse(n_topic.css('.author-info > span')[0]['title'])
-  # topic_content = n_topic.css('#content').text
+  # title = n_topic.css('.discussion-title > h1 > span')[1].text
+  author = n_topic.css('.username').text
+  date = if browser.div(class: 'author-info').span(class: 'tags').exists?
+           Time.parse(n_topic.css('.author-info > span')[1]['title'])
+         else
+           Time.parse(n_topic.css('.author-info > span')[0]['title'])
+         end
+  # content = n_topic.css('#content').text
 
   Topics.create(
     comm_amount: 0,
-    title: 'topic_title',
+    title: 'title',
     unique_code: unique,
-    author: topic_author,
-    date: topic_date,
-    content: 'topic_content'
+    author: author,
+    date: date,
+    content: 'content'
   )
 
   check_comments(browser, unique)
@@ -80,18 +84,28 @@ def parse_discussion_table(browser)
   topics
 end
 
-def check_for_topics(browser, topics)
-  Topics.each do |tpc_from_db|
-    is_topic_on_site = false
-    topics.each do |tpc_from_site|
-      is_topic_on_site = true if tpc_from_db[:unique_code] == tpc_from_site[:unique_code]
-    end
-    next unless is_topic_on_site == false
+require './functions/check_for_topics.rb'
 
-    sleep(0.5)
+def remain_db_topics(site_tpcs)
+  db_tpcs = []
+  Topics.each do |tpc|
+    db_tpcs.push(tpc) if tpc[:present] == true
+  end
+  site_tpcs.each do |site_tpc|
+    if db_tpcs.include?(Topics[unique_code: site_tpc[:unique_code]])
+      db_tpcs.delete(Topics[unique_code: site_tpc[:unique_code]])
+    end
+  end
+  db_tpcs
+end
+
+def next_topic_page(browser)
+  if browser.link(class: 'show-more').present?
     browser.link(class: 'show-more').click
-    topics = parse_discussion_table(browser)
-    check_for_topics(browser, topics)
+    sleep(0.5)
+    true
+  else
+    false
   end
 end
 
@@ -116,12 +130,23 @@ end
 class Topics < Sequel::Model
 end
 
+### INFINITE LOOP ###
+
 br.goto('https://boards.eune.leagueoflegends.com/en/')
 
-topics = parse_discussion_table(br)
-check_for_topics(br, topics)
+site_topics = parse_discussion_table(br)
 
-topics.each_with_index do |topic, index|
+while remain_db_topics(site_topics).count > 0 && next_topic_page(br)
+  next_topic_page(br)
+  site_topics = parse_discussion_table(br)
+end
+
+remain_db_topics(site_topics).each do |r_tpc|
+  puts "topic #{r_tpc[:unique_code]} not found"
+  Topics[unique_code: r_tpc[:unique_code]].update(present: false)
+end
+
+site_topics.each_with_index do |topic, index|
   topic_in_db = Topics[unique_code: topic[:unique_code]]
 
   if !topic_in_db && index < 10
@@ -131,6 +156,9 @@ topics.each_with_index do |topic, index|
     if topic_in_db[:comm_amount] != topic[:comms].to_i
       br.goto("https://boards.eune.leagueoflegends.com/#{topic[:href]}?show=flat")
       check_comments(br, topic[:unique_code])
+    else
+      puts "topic #{index} up to date"
     end
   end
 end
+### INFINITE LOOP END ###
