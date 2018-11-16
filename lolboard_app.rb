@@ -24,7 +24,8 @@ end
 class Topics < Sequel::Model
 end
 
-def parse_discussion_table(browser)
+def parse_discussion_table(browser, page)
+  start_index = page * 50
   n_discussion_table = Nokogiri::HTML.parse(browser.div(class: %w[discussions main]).html)
   topics = n_discussion_table.css('.discussion-list-item').map do |row|
     {
@@ -33,7 +34,7 @@ def parse_discussion_table(browser)
       comms: row['data-comments']
     }
   end
-  topics
+  topics[start_index..-1]
 end
 
 def is_topic_in_db(tpc, db_tpcs)
@@ -129,15 +130,13 @@ loop do
   topics_to_update = []
 
   until db_topics_uniq_codes.empty?
-    site_topics = parse_discussion_table(br)
+    site_topics = parse_discussion_table(br, page)
     site_topics.each_with_index do |topic, index|
-      if index > page * 50
-        if is_topic_in_db(topic, db_topics_uniq_codes)
-          topics_to_update.push(topic)
-          db_topics_uniq_codes.delete(topic[:unique_code])
-        elsif page.zero? && index < 10
-          topics_to_add.push(topic)
-        end
+      if is_topic_in_db(topic, db_topics_uniq_codes)
+        topics_to_update.push(topic)
+        db_topics_uniq_codes.delete(topic[:unique_code])
+      elsif page.zero? && index < 10
+        topics_to_add.push(topic)
       end
     end
     page += 1
