@@ -8,10 +8,10 @@ br = Watir::Browser.new :chrome, headless: true
 # br.window.move_to(0, 0)
 
 Sequel.postgres(
-  'lolboard_db_tests',
+  'lolboard_db',
   user: 'postgres',
   password: 'password',
-  host: '172.17.0.2',
+  host: '172.17.0.3',
   port: '5432'
 )
 
@@ -26,7 +26,7 @@ class Topics < Sequel::Model
     comm_arr = []
     actual_comm = Comments[topic_id: self[:id]]
     if actual_comm
-      while next_comm = Comments[prev_comm_id: actual_comm[:id]]
+      while (next_comm = Comments[prev_comm_id: actual_comm[:id]])
         comm_arr.push(actual_comm)
         actual_comm = next_comm
       end
@@ -116,22 +116,37 @@ def add_topic(browser, unique_code)
   w_topic = browser.div(class: 'op-container').html
   n_topic = Nokogiri::HTML.parse(w_topic)
 
-  # title = n_topic.css('.discussion-title > h1 > span')[1].text
+  title = n_topic.css('.discussion-title > h1 > span')[1].text
   author = n_topic.css('.username').text
   date = Time.parse(n_topic.css('.author-info > span')[0]['title'])
-  # content = n_topic.css('#content').text
+  content = n_topic.css('#content').text
 
   Topics.create(
     comm_amount: 0,
-    title: 'title',
+    title: title,
     unique_code: unique_code,
     author: author,
     date: date,
-    content: 'content'
+    content: content
   )
 
   check_comments(browser, unique_code)
 end
+
+def first_run(browser)
+  if !Topics.empty?
+    nil
+  else
+    browser.goto('https://boards.eune.leagueoflegends.com/en/')
+    site_topics = parse_discussion_table(browser, 0)
+    (0..9).each do |i|
+      browser.goto("https://boards.eune.leagueoflegends.com/#{site_topics[i][:href]}?show=flat")
+      add_topic(browser, site_topics[i][:unique_code])
+    end
+  end
+end
+
+first_run(br)
 
 loop do
   br.goto('https://boards.eune.leagueoflegends.com/en/')
@@ -175,7 +190,7 @@ loop do
   i = 0
   while i < 5
     print '.'
-    sleep 2
+    sleep 180
     i += 1
   end
   print "\n"
