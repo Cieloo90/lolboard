@@ -48,25 +48,9 @@ def parse_discussion_table(browser, page)
   topics[start_index..-1]
 end
 
-def is_topic_in_db(tpc, db_tpcs)
-  if db_tpcs.include?(tpc[:unique_code])
-    true
-  else
-    false
-  end
-end
-
-def is_next_page(browser)
-  if browser.link(class: 'show-more').present?
-    true
-  else
-    false
-  end
-end
-
 def go_next_page(browser)
+  Watir::Wait.until { browser.link(class: 'show-more').span(class: 'show-more-label').present? }
   browser.link(class: 'show-more').click
-  sleep(0.7)
 end
 
 def check_comments(browser, unique_code)
@@ -74,7 +58,7 @@ def check_comments(browser, unique_code)
   w_comments = ''
   prev_comm_id = nil
 
-  if browser.div(class: 'flat-comments').exists?
+  if browser.div(class: 'flat-comments').present?
     browser.div(class: 'pager').links.each do |pager_link|
       next unless pager_link.text
 
@@ -138,10 +122,10 @@ def first_run(browser)
     nil
   else
     browser.goto('https://boards.eune.leagueoflegends.com/en/')
-    site_topics = parse_discussion_table(browser, 0)
+    first_topics = parse_discussion_table(browser, 0)
     10.times do |i|
-      browser.goto("https://boards.eune.leagueoflegends.com/#{site_topics[i][:href]}?show=flat")
-      add_topic(browser, site_topics[i][:unique_code])
+      browser.goto("https://boards.eune.leagueoflegends.com/#{first_topics[i][:href]}?show=flat")
+      add_topic(browser, first_topics[i][:unique_code])
     end
   end
 end
@@ -151,14 +135,14 @@ first_run(br)
 loop do
   br.goto('https://boards.eune.leagueoflegends.com/en/')
   page = 0
-  db_topics_uniq_codes = Topics.where(present: true).all.map(&:unique_code)
+  db_topics_uniq_codes = Topics.where(present: true).map(&:unique_code)
   topics_to_add = []
   topics_to_update = []
 
   until db_topics_uniq_codes.empty?
     site_topics = parse_discussion_table(br, page)
     site_topics.each_with_index do |topic, index|
-      if is_topic_in_db(topic, db_topics_uniq_codes)
+      if db_topics_uniq_codes.include?(topic[:unique_code]) && topic[:comms].to_i > Topics[unique_code: topic[:unique_code]][:comm_amount]
         topics_to_update.push(topic)
         db_topics_uniq_codes.delete(topic[:unique_code])
       elsif page.zero? && index < 10
@@ -166,14 +150,12 @@ loop do
       end
     end
     page += 1
-    break unless is_next_page(br)
+    break unless br.link(class: 'show-more').present?
 
     go_next_page(br)
   end
 
-  db_topics_uniq_codes.each do |db_tpc_unique_code|
-    Topics[unique_code: db_tpc_unique_code].update(present: false)
-  end
+  Topics.filter(unique_code: db_tpc_unique_codes).update(present: false)
 
   topics_to_add.each do |tpc|
     br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
@@ -181,10 +163,8 @@ loop do
   end
 
   topics_to_update.each do |tpc|
-    if Topics[unique_code: tpc[:unique_code]][:comm_amount] < tpc[:comms].to_i
-      br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
-      check_comments(br, tpc[:unique_code])
-    end
+    br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
+    check_comments(br, tpc[:unique_code])
   end
 
   5.times do
