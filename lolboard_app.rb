@@ -139,7 +139,7 @@ def first_run(browser)
   else
     browser.goto('https://boards.eune.leagueoflegends.com/en/')
     site_topics = parse_discussion_table(browser, 0)
-    (0..9).each do |i|
+    10.times do |i|
       browser.goto("https://boards.eune.leagueoflegends.com/#{site_topics[i][:href]}?show=flat")
       add_topic(browser, site_topics[i][:unique_code])
     end
@@ -187,11 +187,9 @@ loop do
     end
   end
 
-  i = 0
-  while i < 5
+  5.times do
     print '.'
     sleep 180
-    i += 1
   end
   print "\n"
 end
