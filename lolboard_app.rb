@@ -166,10 +166,4 @@ loop do
     br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
     check_comments(br, tpc[:unique_code])
   end
-
-  5.times do
-    print '.'
-    sleep 180
-  end
-  print "\n"
 end
