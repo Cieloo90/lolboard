@@ -48,11 +48,6 @@ def parse_discussion_table(browser, page)
   topics[start_index..-1]
 end
 
-def go_next_page(browser)
-  Watir::Wait.until { browser.link(class: 'show-more').span(class: 'show-more-label').present? }
-  browser.link(class: 'show-more').click
-end
-
 def check_comments(browser, unique_code)
   this_topic = Topics[unique_code: unique_code]
   w_comments = ''
@@ -118,15 +113,13 @@ def add_topic(browser, unique_code)
 end
 
 def first_run(browser)
-  if !Topics.empty?
-    nil
-  else
-    browser.goto('https://boards.eune.leagueoflegends.com/en/')
-    first_topics = parse_discussion_table(browser, 0)
-    10.times do |i|
-      browser.goto("https://boards.eune.leagueoflegends.com/#{first_topics[i][:href]}?show=flat")
-      add_topic(browser, first_topics[i][:unique_code])
-    end
+  return nil unless Topics.empty?
+
+  browser.goto('https://boards.eune.leagueoflegends.com/en/')
+  first_topics = parse_discussion_table(browser, 0)
+  10.times do |i|
+    browser.goto("https://boards.eune.leagueoflegends.com/#{first_topics[i][:href]}?show=flat")
+    add_topic(browser, first_topics[i][:unique_code])
   end
 end
 
@@ -152,10 +145,10 @@ loop do
     page += 1
     break unless br.link(class: 'show-more').present?
 
-    go_next_page(br)
+    br.link(class: 'show-more').span(class: 'show-more-label').wait_until_present.click
   end
 
-  Topics.filter(unique_code: db_tpc_unique_codes).update(present: false)
+  Topics.filter(unique_code: db_topics_uniq_codes).update(present: false)
 
   topics_to_add.each do |tpc|
     br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
@@ -166,4 +159,6 @@ loop do
     br.goto("https://boards.eune.leagueoflegends.com/#{tpc[:href]}?show=flat")
     check_comments(br, tpc[:unique_code])
   end
+
+  sleep(15.minutes)
 end
